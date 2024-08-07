@@ -6,19 +6,28 @@ def download_video(url, output_path):
     ydl_opts = {
         'format': 'worstvideo[ext=mp4]',  # Download the lowest quality MP4 video
         'outtmpl': output_path,
+        'quiet': True,  # Suppress output
+        'progress_hooks': [log_progress]
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
 
+def log_progress(d):
+    if d['status'] == 'finished':
+        print(f"Finished downloading: {d['filename']}")
+
 def extract_audio(video_path, audio_path):
-    command = [
-        'ffmpeg',
-        '-i', video_path,  # Input file
-        '-q:a', '0',       # Quality setting
-        '-map', 'a',       # Map audio stream
-        audio_path         # Output file
-    ]
-    subprocess.run(command, check=True)
+    try:
+        command = [
+            'ffmpeg',
+            '-i', video_path,  # Input file
+            '-q:a', '0',       # Quality setting
+            '-map', 'a',       # Map audio stream
+            audio_path         # Output file
+        ]
+        subprocess.run(command, check=True, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as e:
+        print(f"FFmpeg error: {e.stderr.decode()}")
 
 def transcribe_audio(audio_path, api_key):
     url = "https://api.openai.com/v1/audio/transcriptions"
