@@ -1,4 +1,4 @@
-import youtube_dl
+import yt_dlp
 import traceback
 import streamlit as st
 import os
@@ -6,12 +6,12 @@ import sys
 import io
 import logging
 
-# Custom logger to capture youtube_dl output
+# Custom logger to capture yt-dlp output
 class LogCapture:
     def __init__(self):
         self.log = io.StringIO()
         self.handler = logging.StreamHandler(self.log)
-        self.logger = logging.getLogger('youtube_dl')
+        self.logger = logging.getLogger('yt-dlp')
         self.logger.addHandler(self.handler)
         self.logger.setLevel(logging.DEBUG)
 
@@ -30,7 +30,7 @@ def download_video(url, output_path):
     }
 
     try:
-        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             if info is None:
                 st.error(f"Could not extract video info from URL: {url}")
@@ -53,8 +53,8 @@ def download_video(url, output_path):
         st.error(f"Error downloading video: {str(e)}")
         st.text("Full traceback:")
         st.text(traceback.format_exc())
-        st.text("youtube_dl log:")
-        st.text(log_capture.get_log())  # Capture the youtube_dl log
+        st.text("yt-dlp log:")
+        st.text(log_capture.get_log())  # Capture the yt-dlp log
     return False
 
 def main():
@@ -78,10 +78,11 @@ def main():
             st.error("Failed to download the video. Please check the error messages above for more details.")
             st.text("Debug information:")
             st.text(f"Python version: {sys.version}")
-            st.text(f"youtube-dl version: {youtube_dl.__version__}")
+            st.text(f"yt-dlp version: {yt_dlp.__version__}")
             return
 
         # ... (rest of the code remains the same)
 
 if __name__ == "__main__":
     main()
+
