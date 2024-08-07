@@ -19,28 +19,26 @@ class LogCapture:
     def get_log(self):
         return self.log.getvalue()
 
-def download_video(url, output_path):
+def download_audio_as_mp3(url, output_path):
     log_capture = LogCapture()
 
     ydl_opts = {
-        'format': 'mp4',
-        'outtmpl': output_path,
-        'quiet': True,
-        'no_warnings': True,
-        'logger': log_capture.logger,
+        'format': 'bestaudio/best',  # Download the best audio available
+        'extractaudio': True,        # Extract audio only
+        'audioformat': 'mp3',        # Save as mp3
+        'outtmpl': output_path,      # Output file path
+        'quiet': True,               # Suppress unnecessary output
+        'no_warnings': True,         # Suppress warnings
+        'logger': log_capture.logger, # Custom logger
+        'noplaylist': True,          # Download only the single video
     }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            if info is None:
-                st.error(f"Could not extract video info from URL: {url}")
-                return False
-
             ydl.download([url])
 
         if not os.path.isfile(output_path):
-            st.error(f"Video file was not created at: {output_path}")
+            st.error(f"Audio file was not created at: {output_path}")
             return False
 
         file_size = os.path.getsize(output_path)
@@ -48,18 +46,17 @@ def download_video(url, output_path):
             st.error(f"Downloaded file is empty: {output_path}")
             return False
 
-        st.success(f"Video downloaded successfully: {output_path} (Size: {file_size} bytes)")
+        st.success(f"Audio downloaded successfully: {output_path} (Size: {file_size} bytes)")
         return True
     except Exception as e:
-        st.error(f"Error downloading video: {str(e)}")
+        st.error(f"Error downloading audio: {str(e)}")
         st.text("Full traceback:")
         st.text(traceback.format_exc())
         st.text("yt-dlp log:")
         st.text(log_capture.get_log())  # Capture the yt-dlp log
     return False
 
-def transcribe_video(audio_path, openai_api_key):
-    # Dummy implementation: Replace with actual transcription logic
+def transcribe_audio(audio_path, openai_api_key):
     openai.api_key = openai_api_key
     try:
         response = openai.Audio.create(
@@ -96,44 +93,35 @@ def main():
             st.error("Please provide both the YouTube URL and OpenAI API key.")
             return
 
-        video_path = 'video.mp4'
-        audio_path = 'audio.mp3'
+        mp3_path = 'audio.mp3'
 
-        st.text("Starting video download process...")
-        success = download_video(video_url, video_path)
+        st.text("Starting audio download process...")
+        success = download_audio_as_mp3(video_url, mp3_path)
         
         if not success:
-            st.error("Failed to download the video. Please check the error messages above for more details.")
+            st.error("Failed to download the audio. Please check the error messages above for more details.")
             st.text("Debug information:")
             st.text(f"Python version: {sys.version}")
             st.text(f"yt-dlp version: {yt_dlp.__version__}")
             return
 
-        st.text("Extracting audio...")
-        # Placeholder for audio extraction logic (e.g., using ffmpeg)
-        # For demonstration purposes, let's assume the audio extraction was successful
-        audio_extracted = True
+        st.text("Transcribing audio...")
+        transcription = transcribe_audio(mp3_path, openai_api_key)
+        
+        if transcription:
+            st.text("Transcription complete. Here is the text:")
+            st.text(transcription)
 
-        if audio_extracted:
-            st.text("Transcribing audio...")
-            transcription = transcribe_video(audio_path, openai_api_key)
+            st.text("Summarizing text...")
+            summary = summarize_text(transcription, openai_api_key)
             
-            if transcription:
-                st.text("Transcription complete. Here is the text:")
-                st.text(transcription)
-
-                st.text("Summarizing text...")
-                summary = summarize_text(transcription, openai_api_key)
-                
-                if summary:
-                    st.text("Summary:")
-                    st.text(summary)
-                else:
-                    st.error("Failed to summarize the text.")
+            if summary:
+                st.text("Summary:")
+                st.text(summary)
             else:
-                st.error("Failed to transcribe the audio.")
+                st.error("Failed to summarize the text.")
         else:
-            st.error("Failed to extract audio from the video.")
+            st.error("Failed to transcribe the audio.")
 
 if __name__ == "__main__":
     main()
