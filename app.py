@@ -1,4 +1,4 @@
-import yt_dlp
+import pytube
 import traceback
 import streamlit as st
 import os
@@ -6,12 +6,12 @@ import sys
 import io
 import logging
 
-# Custom logger to capture yt-dlp output
+# Custom logger to capture pytube output
 class LogCapture:
     def __init__(self):
         self.log = io.StringIO()
         self.handler = logging.StreamHandler(self.log)
-        self.logger = logging.getLogger('yt-dlp')
+        self.logger = logging.getLogger('pytube')
         self.logger.addHandler(self.handler)
         self.logger.setLevel(logging.DEBUG)
 
@@ -19,21 +19,17 @@ class LogCapture:
         return self.log.getvalue()
 
 def download_video(url, output_path):
-    ydl_opts = {
-        'format': 'mp4',
-        'outtmpl': output_path,
-        'quiet': True,
-        'no_warnings': True,
-        'logger': LogCapture().logger
-    }
+    log_capture = LogCapture()
+    
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            if info is None:
-                st.error(f"Could not extract video info from URL: {url}")
-                return False
-            
-            ydl.download([url])
+        yt = pytube.YouTube(url)
+        stream = yt.streams.filter(file_extension='mp4').first()
+        
+        if not stream:
+            st.error("No suitable video stream found.")
+            return False
+        
+        stream.download(output_path=output_path)
         
         if not os.path.isfile(output_path):
             st.error(f"Video file was not created at: {output_path}")
@@ -50,6 +46,8 @@ def download_video(url, output_path):
         st.error(f"Error downloading video: {str(e)}")
         st.text("Full traceback:")
         st.text(traceback.format_exc())
+        st.text("pytube log:")
+        st.text(log_capture.get_log())  # Capture the pytube log
     return False
 
 def main():
@@ -73,7 +71,7 @@ def main():
             st.error("Failed to download the video. Please check the error messages above for more details.")
             st.text("Debug information:")
             st.text(f"Python version: {sys.version}")
-            st.text(f"yt-dlp version: {yt_dlp.version.__version__}")
+            st.text(f"pytube version: {pytube.__version__}")
             return
 
         # ... (rest of the code remains the same)
