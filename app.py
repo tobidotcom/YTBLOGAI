@@ -1,4 +1,5 @@
 import os
+import time
 import logging
 import requests
 from moviepy.editor import VideoFileClip
@@ -18,6 +19,10 @@ def download_video(url, output_path):
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
+        # Wait until the file is actually created
+        while not os.path.isfile(output_path):
+            time.sleep(1)
+        logging.info(f"Video downloaded: {output_path}")
     except Exception as e:
         logging.error(f"Error downloading video: {e}")
 
@@ -69,8 +74,9 @@ def transcribe_audio(audio_path, api_key):
         return response.json().get("text", None)
     except requests.RequestException as e:
         logging.error(f"Error transcribing audio: {e}")
-        logging.error(f"Response status code: {response.status_code}")
-        logging.error(f"Response content: {response.text}")
+        if response:
+            logging.error(f"Response status code: {response.status_code}")
+            logging.error(f"Response content: {response.text}")
         return None
 
 def generate_blog_post(transcription, api_key):
