@@ -5,7 +5,7 @@ import os
 import sys
 import io
 import logging
-import openai
+import requests
 
 # Custom logger to capture yt-dlp output
 class LogCapture:
@@ -57,27 +57,36 @@ def download_audio_as_mp3(url, output_path):
     return False
 
 def transcribe_audio(audio_path, openai_api_key):
-    openai.api_key = openai_api_key
     try:
-        response = openai.Audio.create(
-            file=open(audio_path, 'rb'),
-            model="whisper-1",  # Example model; choose the one that fits your needs
-            prompt="Transcribe the audio",
-        )
-        return response['text']
+        headers = {
+            'Authorization': f'Bearer {openai_api_key}',
+            'Content-Type': 'multipart/form-data'
+        }
+        files = {
+            'file': open(audio_path, 'rb'),
+            'model': 'whisper-1'
+        }
+        response = requests.post('https://api.openai.com/v1/audio/transcriptions', headers=headers, files=files)
+        response.raise_for_status()
+        return response.json().get('text', '')
     except Exception as e:
         st.error(f"Error transcribing audio: {str(e)}")
         return None
 
 def summarize_text(text, openai_api_key):
-    openai.api_key = openai_api_key
     try:
-        response = openai.Completion.create(
-            engine="text-davinci-003",
-            prompt=f"Summarize the following text:\n\n{text}",
-            max_tokens=150
-        )
-        return response.choices[0].text.strip()
+        headers = {
+            'Authorization': f'Bearer {openai_api_key}',
+            'Content-Type': 'application/json'
+        }
+        data = {
+            'model': 'text-davinci-003',
+            'prompt': f"Summarize the following text:\n\n{text}",
+            'max_tokens': 150
+        }
+        response = requests.post('https://api.openai.com/v1/completions', headers=headers, json=data)
+        response.raise_for_status()
+        return response.json().get('choices', [{}])[0].get('text', '').strip()
     except Exception as e:
         st.error(f"Error summarizing text: {str(e)}")
         return None
