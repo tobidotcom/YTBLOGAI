@@ -1,7 +1,9 @@
-import yt_dlp
+import os
 import subprocess
-import requests
 import logging
+import requests
+from moviepy.editor import VideoFileClip
+import yt_dlp
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -24,17 +26,18 @@ def log_progress(d):
         logging.info(f"Finished downloading: {d['filename']}")
 
 def extract_audio(video_path, audio_path):
+    if not os.path.isfile(video_path):
+        logging.error(f"Video file not found: {video_path}")
+        return
+
     try:
-        command = [
-            'ffmpeg',
-            '-i', video_path,  # Input file
-            '-q:a', '0',       # Quality setting
-            '-map', 'a',       # Map audio stream
-            audio_path         # Output file
-        ]
-        subprocess.run(command, check=True, stderr=subprocess.PIPE)
-    except subprocess.CalledProcessError as e:
-        logging.error(f"FFmpeg error: {e.stderr.decode()}")
+        video_clip = VideoFileClip(video_path)
+        audio_clip = video_clip.audio
+        audio_clip.write_audiofile(audio_path, codec='mp3')
+        audio_clip.close()
+        video_clip.close()
+    except Exception as e:
+        logging.error(f"Error extracting audio: {e}")
 
 def transcribe_audio(audio_path, api_key):
     url = "https://api.openai.com/v1/audio/transcriptions"
