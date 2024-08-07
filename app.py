@@ -11,25 +11,45 @@ logging.basicConfig(level=logging.INFO)
 
 def download_video(url, output_path):
     ydl_opts = {
-        'format': 'worstvideo[ext=mp4]',
+        'format': 'worstvideo[ext=mp4]+worstaudio[ext=m4a]/worst[ext=mp4]/worst',
         'outtmpl': output_path,
-        'quiet': True,
+        'quiet': False,
         'progress_hooks': [log_progress]
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            if info is None:
+                logging.error(f"Could not extract video info from URL: {url}")
+                return False
+            
+            logging.info(f"Downloading video: {info.get('title', 'Unknown title')}")
             ydl.download([url])
-        while not os.path.isfile(output_path):
-            time.sleep(1)
-        logging.info(f"Video downloaded: {output_path}")
+        
+        if not os.path.isfile(output_path):
+            logging.error(f"Video file was not created at: {output_path}")
+            return False
+        
+        file_size = os.path.getsize(output_path)
+        if file_size == 0:
+            logging.error(f"Downloaded file is empty: {output_path}")
+            return False
+        
+        logging.info(f"Video downloaded successfully: {output_path} (Size: {file_size} bytes)")
         return True
+    except yt_dlp.utils.DownloadError as e:
+        logging.error(f"yt-dlp download error: {str(e)}")
+    except yt_dlp.utils.ExtractorError as e:
+        logging.error(f"yt-dlp extractor error: {str(e)}")
     except Exception as e:
-        logging.error(f"Error downloading video: {e}")
-        return False
+        logging.error(f"Unexpected error downloading video: {str(e)}")
+    return False
 
 def log_progress(d):
-    if d['status'] == 'finished':
-        logging.info(f"Finished downloading: {d['filename']}")
+    if d['status'] == 'downloading':
+        print(f"Downloading: {d['_percent_str']} of {d['_total_bytes_str']} at {d['_speed_str']}")
+    elif d['status'] == 'finished':
+        print(f"Finished downloading: {d['filename']}")
 
 def extract_audio(video_path, audio_path):
     if not os.path.isfile(video_path):
@@ -99,7 +119,11 @@ def main():
 
         with st.spinner("Downloading video..."):
             if not download_video(video_url, video_path):
-                st.error("Failed to download the video.")
+                st.error("Failed to download the video. Please check the following:")
+                st.error("1. Ensure the YouTube URL is correct and the video is accessible.")
+                st.error("2. Check your internet connection.")
+                st.error("3. Make sure you have the latest version of yt-dlp installed.")
+                st.error("4. The video might be restricted or require authentication.")
                 return
             st.success("Video downloaded successfully.")
 
