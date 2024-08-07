@@ -4,18 +4,17 @@ import os
 import sys
 import traceback
 
-# Function to download audio from YouTube using yt-to-mp3 API
+# Function to download audio from YouTube using the new API
 def download_audio_as_mp3(url, output_path):
-    api_url = "https://youtube-to-mp315.p.rapidapi.com/download"
-    querystring = {"url": url, "format": "mp3"}
+    api_url = "https://youtube-mp3-downloader2.p.rapidapi.com/ytmp3/ytmp3/custom/"
+    querystring = {"url": url, "quality": "320"}
     headers = {
         "x-rapidapi-key": "e4f02f4cbemshf4900cfd2d28d8ep15b2b0jsnac923a3be9f7",
-        "x-rapidapi-host": "youtube-to-mp315.p.rapidapi.com",
-        "Content-Type": "application/json"
+        "x-rapidapi-host": "youtube-mp3-downloader2.p.rapidapi.com"
     }
 
     try:
-        response = requests.post(api_url, headers=headers, params=querystring)
+        response = requests.get(api_url, headers=headers, params=querystring)
         response.raise_for_status()
         data = response.json()
 
@@ -44,7 +43,7 @@ def download_audio_as_mp3(url, output_path):
                 st.error("No download URL received from API.")
                 return False
         else:
-            st.error(f"Error from yt-to-mp3 API: {data.get('message', 'Unknown error')}")
+            st.error(f"Error from API: {data.get('message', 'Unknown error')}")
             return False
 
     except requests.RequestException as e:
@@ -57,33 +56,35 @@ def download_audio_as_mp3(url, output_path):
 def transcribe_audio(audio_path, openai_api_key):
     url = "https://api.openai.com/v1/audio/transcriptions"
     headers = {
-        "Authorization": f"Bearer {openai_api_key}",
-        "Content-Type": "multipart/form-data"
+        "Authorization": f"Bearer {openai_api_key}"
     }
     files = {
         'file': ('audio.mp3', open(audio_path, 'rb')),
-        'model': 'whisper-1'
+        'model': (None, 'whisper-1')
     }
 
     try:
         response = requests.post(url, headers=headers, files=files)
         response.raise_for_status()
         result = response.json()
-        return result['text']
+        return result.get('text')
     except requests.RequestException as e:
         st.error(f"Error transcribing audio: {str(e)}")
         return None
 
 # Function to summarize text using OpenAI API with raw requests
 def summarize_text(text, openai_api_key):
-    url = "https://api.openai.com/v1/completions"
+    url = "https://api.openai.com/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {openai_api_key}",
         "Content-Type": "application/json"
     }
     data = {
-        "model": "text-davinci-003",
-        "prompt": f"Summarize the following text:\n\n{text}",
+        "model": "gpt-4o",
+        "messages": [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": f"Summarize the following text:\n\n{text}"}
+        ],
         "max_tokens": 150
     }
 
@@ -91,7 +92,7 @@ def summarize_text(text, openai_api_key):
         response = requests.post(url, headers=headers, json=data)
         response.raise_for_status()
         result = response.json()
-        return result['choices'][0]['text'].strip()
+        return result['choices'][0]['message']['content'].strip()
     except requests.RequestException as e:
         st.error(f"Error summarizing text: {str(e)}")
         return None
