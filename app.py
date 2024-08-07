@@ -1,6 +1,10 @@
 import yt_dlp
 import subprocess
 import requests
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 
 def download_video(url, output_path):
     ydl_opts = {
@@ -9,12 +13,15 @@ def download_video(url, output_path):
         'quiet': True,  # Suppress output
         'progress_hooks': [log_progress]
     }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+    except Exception as e:
+        logging.error(f"Error downloading video: {e}")
 
 def log_progress(d):
     if d['status'] == 'finished':
-        print(f"Finished downloading: {d['filename']}")
+        logging.info(f"Finished downloading: {d['filename']}")
 
 def extract_audio(video_path, audio_path):
     try:
@@ -27,7 +34,7 @@ def extract_audio(video_path, audio_path):
         ]
         subprocess.run(command, check=True, stderr=subprocess.PIPE)
     except subprocess.CalledProcessError as e:
-        print(f"FFmpeg error: {e.stderr.decode()}")
+        logging.error(f"FFmpeg error: {e.stderr.decode()}")
 
 def transcribe_audio(audio_path, api_key):
     url = "https://api.openai.com/v1/audio/transcriptions"
@@ -41,9 +48,13 @@ def transcribe_audio(audio_path, api_key):
         "model": "whisper-1",
         "response_format": "json"
     }
-    response = requests.post(url, headers=headers, files=files, data=data)
-    response.raise_for_status()
-    return response.json()["text"]
+    try:
+        response = requests.post(url, headers=headers, files=files, data=data)
+        response.raise_for_status()
+        return response.json()["text"]
+    except requests.RequestException as e:
+        logging.error(f"Error transcribing audio: {e}")
+        return None
 
 def generate_blog_post(transcription, api_key):
     url = "https://api.openai.com/v1/chat/completions"
@@ -64,9 +75,13 @@ def generate_blog_post(transcription, api_key):
             }
         ]
     }
-    response = requests.post(url, headers=headers, json=data)
-    response.raise_for_status()
-    return response.json()["choices"][0]["message"]["content"]
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        response.raise_for_status()
+        return response.json()["choices"][0]["message"]["content"]
+    except requests.RequestException as e:
+        logging.error(f"Error generating blog post: {e}")
+        return None
 
 # Example usage
 if __name__ == "__main__":
@@ -76,20 +91,21 @@ if __name__ == "__main__":
     openai_api_key = 'your_openai_api_key'  # Replace with your OpenAI API key
 
     # Step 1: Download the YouTube video
-    print("Downloading video...")
+    logging.info("Downloading video...")
     download_video(video_url, video_path)
 
     # Step 2: Extract audio from the video
-    print("Extracting audio...")
+    logging.info("Extracting audio...")
     extract_audio(video_path, audio_path)
 
     # Step 3: Transcribe the audio
-    print("Transcribing audio...")
+    logging.info("Transcribing audio...")
     transcription = transcribe_audio(audio_path, openai_api_key)
-    print("Transcription:", transcription)
+    if transcription:
+        logging.info("Transcription:", transcription)
 
-    # Step 4: Generate blog post
-    print("Generating blog post...")
-    blog_post = generate_blog_post(transcription, openai_api_key)
-    print("Blog Post:", blog_post)
-
+        # Step 4: Generate blog post
+        logging.info("Generating blog post...")
+        blog_post = generate_blog_post(transcription, openai_api_key)
+        if blog_post:
+            logging.info("Blog Post:", blog_post)
