@@ -2,3 +2,4 @@ streamlit
 requests
 pytube
 moviepy
+youtube_dl
