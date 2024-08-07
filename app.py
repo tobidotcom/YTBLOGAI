@@ -1,6 +1,6 @@
+import streamlit as st
 from pytube import YouTube
 from moviepy.editor import AudioFileClip
-import streamlit as st
 import os
 import traceback
 
@@ -8,15 +8,16 @@ import traceback
 def download_and_extract_audio(video_url, output_path):
     try:
         yt = YouTube(video_url)
-        stream = yt.streams.filter(only_audio=True).first()
 
-        if not stream:
-            st.error("No audio stream available for the video.")
+        # Fetch the audio stream
+        audio_stream = yt.streams.filter(only_audio=True).first()
+        if not audio_stream:
+            st.error("No audio stream found for this video.")
             return False
 
-        # Download the audio stream to a temporary file
+        # Download the audio stream
         temp_filename = "temp_audio.mp4"
-        stream.download(filename=temp_filename)
+        audio_stream.download(filename=temp_filename)
 
         # Convert the downloaded file to MP3
         audio_clip = AudioFileClip(temp_filename)
@@ -36,6 +37,7 @@ def download_and_extract_audio(video_url, output_path):
 
 # Function to transcribe audio using OpenAI API
 def transcribe_audio(audio_path, openai_api_key):
+    import requests
     url = "https://api.openai.com/v1/audio/transcriptions"
     headers = {
         "Authorization": f"Bearer {openai_api_key}",
@@ -57,6 +59,7 @@ def transcribe_audio(audio_path, openai_api_key):
 
 # Function to summarize text using OpenAI API
 def summarize_text(text, openai_api_key):
+    import requests
     url = "https://api.openai.com/v1/completions"
     headers = {
         "Authorization": f"Bearer {openai_api_key}",
