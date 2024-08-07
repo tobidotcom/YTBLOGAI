@@ -1,16 +1,18 @@
 from pytube import YouTube
-import requests
+from moviepy.editor import AudioFileClip
 import streamlit as st
 import os
-import sys
 import traceback
-from moviepy.editor import AudioFileClip
 
 # Function to download video and extract audio
 def download_and_extract_audio(video_url, output_path):
     try:
         yt = YouTube(video_url)
         stream = yt.streams.filter(only_audio=True).first()
+
+        if not stream:
+            st.error("No audio stream available for the video.")
+            return False
 
         # Download the audio stream to a temporary file
         temp_filename = "temp_audio.mp4"
@@ -36,11 +38,12 @@ def download_and_extract_audio(video_url, output_path):
 def transcribe_audio(audio_path, openai_api_key):
     url = "https://api.openai.com/v1/audio/transcriptions"
     headers = {
-        "Authorization": f"Bearer {openai_api_key}"
+        "Authorization": f"Bearer {openai_api_key}",
+        "Content-Type": "multipart/form-data"
     }
     files = {
         'file': ('audio.mp3', open(audio_path, 'rb')),
-        'model': (None, 'whisper-1')
+        'model': 'whisper-1'
     }
 
     try:
@@ -54,17 +57,14 @@ def transcribe_audio(audio_path, openai_api_key):
 
 # Function to summarize text using OpenAI API
 def summarize_text(text, openai_api_key):
-    url = "https://api.openai.com/v1/chat/completions"
+    url = "https://api.openai.com/v1/completions"
     headers = {
         "Authorization": f"Bearer {openai_api_key}",
         "Content-Type": "application/json"
     }
     data = {
-        "model": "gpt-4",
-        "messages": [
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": f"Summarize the following text:\n\n{text}"}
-        ],
+        "model": "text-davinci-003",
+        "prompt": f"Summarize the following text:\n\n{text}",
         "max_tokens": 150
     }
 
@@ -72,7 +72,7 @@ def summarize_text(text, openai_api_key):
         response = requests.post(url, headers=headers, json=data)
         response.raise_for_status()
         result = response.json()
-        return result['choices'][0]['message']['content'].strip()
+        return result['choices'][0]['text'].strip()
     except requests.RequestException as e:
         st.error(f"Error summarizing text: {str(e)}")
         return None
@@ -95,8 +95,6 @@ def main():
         
         if not success:
             st.error("Failed to download and extract the audio. Please check the error messages above for more details.")
-            st.text("Debug information:")
-            st.text(f"Python version: {sys.version}")
             return
 
         st.text("Transcribing audio...")
@@ -119,4 +117,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
