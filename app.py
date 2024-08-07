@@ -3,6 +3,7 @@ import logging
 import requests
 from moviepy.editor import VideoFileClip
 import yt_dlp
+import streamlit as st
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -95,30 +96,48 @@ def generate_blog_post(transcription, api_key):
         logging.error(f"Error generating blog post: {e}")
         return None
 
-# Example usage
+# Streamlit app
+def main():
+    st.title("YouTube Video to Blog Post")
+
+    video_url = st.text_input("Enter the YouTube video URL:")
+    openai_api_key = st.text_input("Enter your OpenAI API key:", type="password")
+
+    if st.button("Process"):
+        if not video_url or not openai_api_key:
+            st.error("Please provide both the YouTube URL and OpenAI API key.")
+            return
+
+        # File paths
+        video_path = 'video.mp4'
+        audio_path = 'audio.mp3'
+
+        # Download the video
+        st.write("Downloading video...")
+        download_video(video_url, video_path)
+        st.write("Video downloaded.")
+
+        # Extract audio
+        st.write("Extracting audio...")
+        extract_audio(video_path, audio_path)
+        st.write("Audio extracted.")
+
+        # Transcribe audio
+        st.write("Transcribing audio...")
+        transcription = transcribe_audio(audio_path, openai_api_key)
+        if transcription:
+            st.write("Transcription successful.")
+
+            # Generate blog post
+            st.write("Generating blog post...")
+            blog_post = generate_blog_post(transcription, openai_api_key)
+            if blog_post:
+                st.write("Blog Post:")
+                st.text_area("Generated Blog Post", blog_post, height=400)
+            else:
+                st.error("Failed to generate the blog post.")
+        else:
+            st.error("Failed to transcribe the audio.")
+    
 if __name__ == "__main__":
-    video_url = 'https://www.youtube.com/watch?v=YOUR_VIDEO_ID'  # Replace with your YouTube video URL
-    video_path = 'video.mp4'
-    audio_path = 'audio.mp3'
-    openai_api_key = 'your_openai_api_key'  # Replace with your OpenAI API key
-
-    # Step 1: Download the YouTube video
-    logging.info("Downloading video...")
-    download_video(video_url, video_path)
-
-    # Step 2: Extract audio from the video
-    logging.info("Extracting audio...")
-    extract_audio(video_path, audio_path)
-
-    # Step 3: Transcribe the audio
-    logging.info("Transcribing audio...")
-    transcription = transcribe_audio(audio_path, openai_api_key)
-    if transcription:
-        logging.info("Transcription:", transcription)
-
-        # Step 4: Generate blog post
-        logging.info("Generating blog post...")
-        blog_post = generate_blog_post(transcription, openai_api_key)
-        if blog_post:
-            logging.info("Blog Post:", blog_post)
-
+    main()
