@@ -5,6 +5,7 @@ import os
 import sys
 import io
 import logging
+import openai
 
 # Custom logger to capture yt-dlp output
 class LogCapture:
@@ -57,6 +58,33 @@ def download_video(url, output_path):
         st.text(log_capture.get_log())  # Capture the yt-dlp log
     return False
 
+def transcribe_video(audio_path, openai_api_key):
+    # Dummy implementation: Replace with actual transcription logic
+    openai.api_key = openai_api_key
+    try:
+        response = openai.Audio.create(
+            file=open(audio_path, 'rb'),
+            model="whisper-1",  # Example model; choose the one that fits your needs
+            prompt="Transcribe the audio",
+        )
+        return response['text']
+    except Exception as e:
+        st.error(f"Error transcribing audio: {str(e)}")
+        return None
+
+def summarize_text(text, openai_api_key):
+    openai.api_key = openai_api_key
+    try:
+        response = openai.Completion.create(
+            engine="text-davinci-003",
+            prompt=f"Summarize the following text:\n\n{text}",
+            max_tokens=150
+        )
+        return response.choices[0].text.strip()
+    except Exception as e:
+        st.error(f"Error summarizing text: {str(e)}")
+        return None
+
 def main():
     st.title("YouTube Video to Blog Post")
 
@@ -81,7 +109,31 @@ def main():
             st.text(f"yt-dlp version: {yt_dlp.__version__}")
             return
 
-        # ... (rest of the code remains the same)
+        st.text("Extracting audio...")
+        # Placeholder for audio extraction logic (e.g., using ffmpeg)
+        # For demonstration purposes, let's assume the audio extraction was successful
+        audio_extracted = True
+
+        if audio_extracted:
+            st.text("Transcribing audio...")
+            transcription = transcribe_video(audio_path, openai_api_key)
+            
+            if transcription:
+                st.text("Transcription complete. Here is the text:")
+                st.text(transcription)
+
+                st.text("Summarizing text...")
+                summary = summarize_text(transcription, openai_api_key)
+                
+                if summary:
+                    st.text("Summary:")
+                    st.text(summary)
+                else:
+                    st.error("Failed to summarize the text.")
+            else:
+                st.error("Failed to transcribe the audio.")
+        else:
+            st.error("Failed to extract audio from the video.")
 
 if __name__ == "__main__":
     main()
