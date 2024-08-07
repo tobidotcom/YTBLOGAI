@@ -4,6 +4,7 @@ import streamlit as st
 import os
 import sys
 import traceback
+from tempfile import NamedTemporaryFile
 
 # Function to download video and extract audio
 def download_and_extract_audio(video_url, output_path):
@@ -21,14 +22,19 @@ def download_and_extract_audio(video_url, output_path):
     }
 
     try:
-        # Download video and extract audio
+        # Use a temporary file for download
+        with NamedTemporaryFile(delete=False, suffix='.mp4') as temp_file:
+            temp_filename = temp_file.name
+
+        ydl_opts['outtmpl'] = temp_filename
+        
         with ytdlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([video_url])
         
         # Move the file to the desired output path
-        temp_file = 'temp.mp3'
-        if os.path.exists(temp_file):
-            os.rename(temp_file, output_path)
+        temp_mp3_file = temp_filename.replace('.mp4', '.mp3')
+        if os.path.exists(temp_mp3_file):
+            os.rename(temp_mp3_file, output_path)
             st.success(f"Audio extracted successfully: {output_path}")
             return True
         else:
@@ -127,5 +133,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
