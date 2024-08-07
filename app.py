@@ -11,20 +11,21 @@ logging.basicConfig(level=logging.INFO)
 
 def download_video(url, output_path):
     ydl_opts = {
-        'format': 'worstvideo[ext=mp4]',  # Download the lowest quality MP4 video
+        'format': 'worstvideo[ext=mp4]',
         'outtmpl': output_path,
-        'quiet': True,  # Suppress output
+        'quiet': True,
         'progress_hooks': [log_progress]
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
-        # Wait until the file is actually created
         while not os.path.isfile(output_path):
             time.sleep(1)
         logging.info(f"Video downloaded: {output_path}")
+        return True
     except Exception as e:
         logging.error(f"Error downloading video: {e}")
+        return False
 
 def log_progress(d):
     if d['status'] == 'finished':
@@ -33,51 +34,33 @@ def log_progress(d):
 def extract_audio(video_path, audio_path):
     if not os.path.isfile(video_path):
         logging.error(f"Video file not found: {video_path}")
-        return
-
+        return False
     try:
-        video_clip = VideoFileClip(video_path)
-        audio_clip = video_clip.audio
-        audio_clip.write_audiofile(audio_path, codec='mp3')
-        audio_clip.close()
-        video_clip.close()
-
-        if not os.path.isfile(audio_path):
-            logging.error(f"Audio file was not created: {audio_path}")
-        else:
-            logging.info(f"Audio extracted successfully: {audio_path}")
-
+        with VideoFileClip(video_path) as video_clip:
+            audio_clip = video_clip.audio
+            audio_clip.write_audiofile(audio_path, codec='mp3')
+        logging.info(f"Audio extracted successfully: {audio_path}")
+        return True
     except Exception as e:
         logging.error(f"Error extracting audio: {e}")
+        return False
 
 def transcribe_audio(audio_path, api_key):
     if not os.path.isfile(audio_path):
         logging.error(f"Audio file not found: {audio_path}")
         return None
-
     url = "https://api.openai.com/v1/audio/transcriptions"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-    files = {
-        "file": open(audio_path, "rb")
-    }
-    data = {
-        "model": "whisper-1",
-        "response_format": "json"
-    }
-    try:
-        response = requests.post(url, headers=headers, files=files, data=data)
-        response.raise_for_status()
-        logging.info(f"Transcription response: {response.json()}")
-        return response.json().get("text", None)
-    except requests.RequestException as e:
-        logging.error(f"Error transcribing audio: {e}")
-        if response:
-            logging.error(f"Response status code: {response.status_code}")
-            logging.error(f"Response content: {response.text}")
-        return None
+    headers = {"Authorization": f"Bearer {api_key}"}
+    with open(audio_path, "rb") as audio_file:
+        files = {"file": audio_file}
+        data = {"model": "whisper-1", "response_format": "json"}
+        try:
+            response = requests.post(url, headers=headers, files=files, data=data)
+            response.raise_for_status()
+            return response.json().get("text")
+        except requests.RequestException as e:
+            logging.error(f"Error transcribing audio: {e}")
+            return None
 
 def generate_blog_post(transcription, api_key):
     url = "https://api.openai.com/v1/chat/completions"
@@ -88,14 +71,8 @@ def generate_blog_post(transcription, api_key):
     data = {
         "model": "gpt-4",
         "messages": [
-            {
-                "role": "system",
-                "content": "You are a blog post writer."
-            },
-            {
-                "role": "user",
-                "content": f"Create a blog post based on the following transcription:\n\n{transcription}"
-            }
+            {"role": "system", "content": "You are a blog post writer."},
+            {"role": "user", "content": f"Create a blog post based on the following transcription:\n\n{transcription}"}
         ]
     }
     try:
@@ -106,7 +83,6 @@ def generate_blog_post(transcription, api_key):
         logging.error(f"Error generating blog post: {e}")
         return None
 
-# Streamlit app
 def main():
     st.title("YouTube Video to Blog Post")
 
@@ -118,36 +94,41 @@ def main():
             st.error("Please provide both the YouTube URL and OpenAI API key.")
             return
 
-        # File paths
         video_path = 'video.mp4'
         audio_path = 'audio.mp3'
 
-        # Download the video
-        st.write("Downloading video...")
-        download_video(video_url, video_path)
-        st.write("Video downloaded.")
+        with st.spinner("Downloading video..."):
+            if not download_video(video_url, video_path):
+                st.error("Failed to download the video.")
+                return
+            st.success("Video downloaded successfully.")
 
-        # Extract audio
-        st.write("Extracting audio...")
-        extract_audio(video_path, audio_path)
-        st.write("Audio extracted.")
+        with st.spinner("Extracting audio..."):
+            if not extract_audio(video_path, audio_path):
+                st.error("Failed to extract audio from the video.")
+                return
+            st.success("Audio extracted successfully.")
 
-        # Transcribe audio
-        st.write("Transcribing audio...")
-        transcription = transcribe_audio(audio_path, openai_api_key)
-        if transcription:
-            st.write("Transcription successful.")
+        with st.spinner("Transcribing audio..."):
+            transcription = transcribe_audio(audio_path, openai_api_key)
+            if not transcription:
+                st.error("Failed to transcribe the audio.")
+                return
+            st.success("Transcription completed successfully.")
 
-            # Generate blog post
-            st.write("Generating blog post...")
+        with st.spinner("Generating blog post..."):
             blog_post = generate_blog_post(transcription, openai_api_key)
-            if blog_post:
-                st.write("Blog Post:")
-                st.text_area("Generated Blog Post", blog_post, height=400)
-            else:
+            if not blog_post:
                 st.error("Failed to generate the blog post.")
-        else:
-            st.error("Failed to transcribe the audio.")
-    
+                return
+            st.success("Blog post generated successfully.")
+
+        st.subheader("Generated Blog Post:")
+        st.text_area("", blog_post, height=400)
+
+        # Clean up temporary files
+        os.remove(video_path)
+        os.remove(audio_path)
+
 if __name__ == "__main__":
     main()
