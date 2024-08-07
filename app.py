@@ -1,58 +1,46 @@
+import yt_dlp as ytdlp
+from pydub import AudioSegment
 import requests
 import streamlit as st
 import os
 import sys
 import traceback
 
-# Function to download audio from YouTube using the new API
-def download_audio_as_mp3(url, output_path):
-    api_url = "https://youtube-mp3-downloader2.p.rapidapi.com/ytmp3/ytmp3/custom/"
-    querystring = {"url": url, "quality": "320"}
-    headers = {
-        "x-rapidapi-key": "e4f02f4cbemshf4900cfd2d28d8ep15b2b0jsnac923a3be9f7",
-        "x-rapidapi-host": "youtube-mp3-downloader2.p.rapidapi.com"
+# Function to download video and extract audio
+def download_and_extract_audio(video_url, output_path):
+    # Define the options for yt-dlp
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'outtmpl': 'temp.%(ext)s',  # Temporary filename
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '320',
+        }],
+        'quiet': True
     }
-
+    
     try:
-        response = requests.get(api_url, headers=headers, params=querystring)
-        response.raise_for_status()
-        data = response.json()
-
-        if data.get('status') == 'success':
-            download_url = data.get('url')
-            if download_url:
-                audio_response = requests.get(download_url, stream=True)
-                audio_response.raise_for_status()
-
-                with open(output_path, 'wb') as f:
-                    for chunk in audio_response.iter_content(chunk_size=8192):
-                        f.write(chunk)
-
-                if not os.path.isfile(output_path):
-                    st.error(f"Audio file was not created at: {output_path}")
-                    return False
-
-                file_size = os.path.getsize(output_path)
-                if file_size == 0:
-                    st.error(f"Downloaded file is empty: {output_path}")
-                    return False
-
-                st.success(f"Audio downloaded successfully: {output_path} (Size: {file_size} bytes)")
-                return True
-            else:
-                st.error("No download URL received from API.")
-                return False
+        # Download video and extract audio
+        with ytdlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([video_url])
+        
+        # Move the file to the desired output path
+        temp_file = 'temp.mp3'
+        if os.path.exists(temp_file):
+            os.rename(temp_file, output_path)
+            st.success(f"Audio extracted successfully: {output_path}")
+            return True
         else:
-            st.error(f"Error from API: {data.get('message', 'Unknown error')}")
+            st.error(f"Failed to extract audio. Temporary file not found.")
             return False
-
-    except requests.RequestException as e:
-        st.error(f"Request error: {str(e)}")
+    except Exception as e:
+        st.error(f"Error during download or extraction: {str(e)}")
         st.text("Full traceback:")
         st.text(traceback.format_exc())
         return False
 
-# Function to transcribe audio using OpenAI API with raw requests
+# Function to transcribe audio using OpenAI API
 def transcribe_audio(audio_path, openai_api_key):
     url = "https://api.openai.com/v1/audio/transcriptions"
     headers = {
@@ -72,7 +60,7 @@ def transcribe_audio(audio_path, openai_api_key):
         st.error(f"Error transcribing audio: {str(e)}")
         return None
 
-# Function to summarize text using OpenAI API with raw requests
+# Function to summarize text using OpenAI API
 def summarize_text(text, openai_api_key):
     url = "https://api.openai.com/v1/chat/completions"
     headers = {
@@ -80,7 +68,7 @@ def summarize_text(text, openai_api_key):
         "Content-Type": "application/json"
     }
     data = {
-        "model": "gpt-4o",
+        "model": "gpt-4",
         "messages": [
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": f"Summarize the following text:\n\n{text}"}
@@ -110,11 +98,11 @@ def main():
 
         audio_path = 'audio.mp3'
 
-        st.text("Starting audio download process...")
-        success = download_audio_as_mp3(video_url, audio_path)
+        st.text("Starting video download and audio extraction process...")
+        success = download_and_extract_audio(video_url, audio_path)
         
         if not success:
-            st.error("Failed to download the audio. Please check the error messages above for more details.")
+            st.error("Failed to download and extract the audio. Please check the error messages above for more details.")
             st.text("Debug information:")
             st.text(f"Python version: {sys.version}")
             return
