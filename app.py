@@ -1,42 +1,24 @@
-import yt_dlp
-import traceback
+from pytube import YouTube
+from pydub import AudioSegment
+import requests
 import streamlit as st
 import os
 import sys
-import io
-import logging
-import requests
-
-# Custom logger to capture yt-dlp output
-class LogCapture:
-    def __init__(self):
-        self.log = io.StringIO()
-        self.handler = logging.StreamHandler(self.log)
-        self.logger = logging.getLogger('yt-dlp')
-        self.logger.addHandler(self.handler)
-        self.logger.setLevel(logging.DEBUG)
-
-    def get_log(self):
-        return self.log.getvalue()
+import traceback
 
 def download_audio_as_mp3(url, output_path):
-    log_capture = LogCapture()
-
-    ydl_opts = {
-        'format': 'bestaudio/best',  # Download the best audio available
-        'extractaudio': True,        # Extract audio only
-        'audioformat': 'mp3',        # Save as mp3
-        'outtmpl': output_path,      # Output file path
-        'quiet': True,               # Suppress unnecessary output
-        'no_warnings': True,         # Suppress warnings
-        'logger': log_capture.logger, # Custom logger
-        'noplaylist': True,          # Download only the single video
-    }
-
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-
+        yt = YouTube(url)
+        audio_stream = yt.streams.filter(only_audio=True).first()
+        audio_file = audio_stream.download(filename='temp_audio')
+        
+        # Convert to MP3
+        audio = AudioSegment.from_file(audio_file)
+        audio.export(output_path, format='mp3')
+        
+        # Clean up temporary file
+        os.remove(audio_file)
+        
         if not os.path.isfile(output_path):
             st.error(f"Audio file was not created at: {output_path}")
             return False
@@ -46,25 +28,21 @@ def download_audio_as_mp3(url, output_path):
             st.error(f"Downloaded file is empty: {output_path}")
             return False
 
-        st.success(f"Audio downloaded successfully: {output_path} (Size: {file_size} bytes)")
+        st.success(f"Audio downloaded and converted successfully: {output_path} (Size: {file_size} bytes)")
         return True
     except Exception as e:
-        st.error(f"Error downloading audio: {str(e)}")
+        st.error(f"Error downloading or converting audio: {str(e)}")
         st.text("Full traceback:")
         st.text(traceback.format_exc())
-        st.text("yt-dlp log:")
-        st.text(log_capture.get_log())  # Capture the yt-dlp log
     return False
 
 def transcribe_audio(audio_path, openai_api_key):
     try:
         headers = {
             'Authorization': f'Bearer {openai_api_key}',
-            'Content-Type': 'multipart/form-data'
         }
         files = {
             'file': open(audio_path, 'rb'),
-            'model': 'whisper-1'
         }
         response = requests.post('https://api.openai.com/v1/audio/transcriptions', headers=headers, files=files)
         response.raise_for_status()
@@ -108,10 +86,9 @@ def main():
         success = download_audio_as_mp3(video_url, mp3_path)
         
         if not success:
-            st.error("Failed to download the audio. Please check the error messages above for more details.")
+            st.error("Failed to download and convert the audio. Please check the error messages above for more details.")
             st.text("Debug information:")
             st.text(f"Python version: {sys.version}")
-            st.text(f"yt-dlp version: {yt_dlp.__version__}")
             return
 
         st.text("Transcribing audio...")
@@ -134,4 +111,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
