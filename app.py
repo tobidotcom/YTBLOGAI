@@ -1,45 +1,31 @@
-import yt_dlp as ytdlp
+from pytube import YouTube
 import requests
 import streamlit as st
 import os
 import sys
 import traceback
-from tempfile import NamedTemporaryFile
+from moviepy.editor import AudioFileClip
 
 # Function to download video and extract audio
 def download_and_extract_audio(video_url, output_path):
-    # Define the options for yt-dlp
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'outtmpl': 'temp.%(ext)s',  # Temporary filename
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '320',
-        }],
-        'quiet': True,
-        'progress_hooks': [lambda d: None]  # Disable progress output
-    }
-
     try:
-        # Use a temporary file for download
-        with NamedTemporaryFile(delete=False, suffix='.mp4') as temp_file:
-            temp_filename = temp_file.name
+        yt = YouTube(video_url)
+        stream = yt.streams.filter(only_audio=True).first()
 
-        ydl_opts['outtmpl'] = temp_filename
-        
-        with ytdlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([video_url])
-        
-        # Move the file to the desired output path
-        temp_mp3_file = temp_filename.replace('.mp4', '.mp3')
-        if os.path.exists(temp_mp3_file):
-            os.rename(temp_mp3_file, output_path)
-            st.success(f"Audio extracted successfully: {output_path}")
-            return True
-        else:
-            st.error("Failed to extract audio. Temporary file not found.")
-            return False
+        # Download the audio stream to a temporary file
+        temp_filename = "temp_audio.mp4"
+        stream.download(filename=temp_filename)
+
+        # Convert the downloaded file to MP3
+        audio_clip = AudioFileClip(temp_filename)
+        audio_clip.write_audiofile(output_path)
+        audio_clip.close()
+
+        # Clean up temporary file
+        os.remove(temp_filename)
+
+        st.success(f"Audio extracted successfully: {output_path}")
+        return True
     except Exception as e:
         st.error(f"Error during download or extraction: {str(e)}")
         st.text("Full traceback:")
@@ -133,6 +119,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
 
