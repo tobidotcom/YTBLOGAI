@@ -1,5 +1,4 @@
 import os
-import subprocess
 import logging
 import requests
 from moviepy.editor import VideoFileClip
@@ -36,10 +35,20 @@ def extract_audio(video_path, audio_path):
         audio_clip.write_audiofile(audio_path, codec='mp3')
         audio_clip.close()
         video_clip.close()
+
+        if not os.path.isfile(audio_path):
+            logging.error(f"Audio file was not created: {audio_path}")
+        else:
+            logging.info(f"Audio extracted successfully: {audio_path}")
+
     except Exception as e:
         logging.error(f"Error extracting audio: {e}")
 
 def transcribe_audio(audio_path, api_key):
+    if not os.path.isfile(audio_path):
+        logging.error(f"Audio file not found: {audio_path}")
+        return None
+
     url = "https://api.openai.com/v1/audio/transcriptions"
     headers = {
         "Authorization": f"Bearer {api_key}"
@@ -112,3 +121,4 @@ if __name__ == "__main__":
         blog_post = generate_blog_post(transcription, openai_api_key)
         if blog_post:
             logging.info("Blog Post:", blog_post)
+
