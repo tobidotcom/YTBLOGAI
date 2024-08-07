@@ -1,4 +1,4 @@
-import pytube
+import youtube_dl
 import traceback
 import streamlit as st
 import os
@@ -6,12 +6,12 @@ import sys
 import io
 import logging
 
-# Custom logger to capture pytube output
+# Custom logger to capture youtube_dl output
 class LogCapture:
     def __init__(self):
         self.log = io.StringIO()
         self.handler = logging.StreamHandler(self.log)
-        self.logger = logging.getLogger('pytube')
+        self.logger = logging.getLogger('youtube_dl')
         self.logger.addHandler(self.handler)
         self.logger.setLevel(logging.DEBUG)
 
@@ -20,34 +20,41 @@ class LogCapture:
 
 def download_video(url, output_path):
     log_capture = LogCapture()
-    
+
+    ydl_opts = {
+        'format': 'mp4',
+        'outtmpl': output_path,
+        'quiet': True,
+        'no_warnings': True,
+        'logger': log_capture.logger,
+    }
+
     try:
-        yt = pytube.YouTube(url)
-        stream = yt.streams.filter(file_extension='mp4').first()
-        
-        if not stream:
-            st.error("No suitable video stream found.")
-            return False
-        
-        stream.download(output_path=output_path)
-        
+        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            if info is None:
+                st.error(f"Could not extract video info from URL: {url}")
+                return False
+
+            ydl.download([url])
+
         if not os.path.isfile(output_path):
             st.error(f"Video file was not created at: {output_path}")
             return False
-        
+
         file_size = os.path.getsize(output_path)
         if file_size == 0:
             st.error(f"Downloaded file is empty: {output_path}")
             return False
-        
+
         st.success(f"Video downloaded successfully: {output_path} (Size: {file_size} bytes)")
         return True
     except Exception as e:
         st.error(f"Error downloading video: {str(e)}")
         st.text("Full traceback:")
         st.text(traceback.format_exc())
-        st.text("pytube log:")
-        st.text(log_capture.get_log())  # Capture the pytube log
+        st.text("youtube_dl log:")
+        st.text(log_capture.get_log())  # Capture the youtube_dl log
     return False
 
 def main():
@@ -71,7 +78,7 @@ def main():
             st.error("Failed to download the video. Please check the error messages above for more details.")
             st.text("Debug information:")
             st.text(f"Python version: {sys.version}")
-            st.text(f"pytube version: {pytube.__version__}")
+            st.text(f"youtube-dl version: {youtube_dl.__version__}")
             return
 
         # ... (rest of the code remains the same)
