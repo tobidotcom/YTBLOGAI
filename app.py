@@ -52,7 +52,8 @@ def transcribe_audio(audio_path, api_key):
 
     url = "https://api.openai.com/v1/audio/transcriptions"
     headers = {
-        "Authorization": f"Bearer {api_key}"
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
     }
     files = {
         "file": open(audio_path, "rb")
@@ -64,9 +65,12 @@ def transcribe_audio(audio_path, api_key):
     try:
         response = requests.post(url, headers=headers, files=files, data=data)
         response.raise_for_status()
-        return response.json()["text"]
+        logging.info(f"Transcription response: {response.json()}")
+        return response.json().get("text", None)
     except requests.RequestException as e:
         logging.error(f"Error transcribing audio: {e}")
+        logging.error(f"Response status code: {response.status_code}")
+        logging.error(f"Response content: {response.text}")
         return None
 
 def generate_blog_post(transcription, api_key):
