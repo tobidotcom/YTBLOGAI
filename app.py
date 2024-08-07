@@ -1,5 +1,4 @@
 import yt_dlp as ytdlp
-from pydub import AudioSegment
 import requests
 import streamlit as st
 import os
@@ -17,9 +16,10 @@ def download_and_extract_audio(video_url, output_path):
             'preferredcodec': 'mp3',
             'preferredquality': '320',
         }],
-        'quiet': True
+        'quiet': True,
+        'progress_hooks': [lambda d: None]  # Disable progress output
     }
-    
+
     try:
         # Download video and extract audio
         with ytdlp.YoutubeDL(ydl_opts) as ydl:
@@ -32,7 +32,7 @@ def download_and_extract_audio(video_url, output_path):
             st.success(f"Audio extracted successfully: {output_path}")
             return True
         else:
-            st.error(f"Failed to extract audio. Temporary file not found.")
+            st.error("Failed to extract audio. Temporary file not found.")
             return False
     except Exception as e:
         st.error(f"Error during download or extraction: {str(e)}")
