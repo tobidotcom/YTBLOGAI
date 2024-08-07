@@ -3,25 +3,36 @@ import traceback
 import streamlit as st
 import os
 import sys
+import io
+import logging
+
+# Custom logger to capture yt-dlp output
+class LogCapture:
+    def __init__(self):
+        self.log = io.StringIO()
+        self.handler = logging.StreamHandler(self.log)
+        self.logger = logging.getLogger('yt-dlp')
+        self.logger.addHandler(self.handler)
+        self.logger.setLevel(logging.DEBUG)
+
+    def get_log(self):
+        return self.log.getvalue()
 
 def download_video(url, output_path):
     ydl_opts = {
-        'format': 'mp4',  # Simply request an MP4 format
+        'format': 'mp4',
         'outtmpl': output_path,
-        'quiet': False,
-        'progress_hooks': [log_progress],
-        'verbose': True  # Enable verbose output
+        'quiet': True,
+        'no_warnings': True,
+        'logger': LogCapture().logger
     }
     try:
-        st.text("Initializing YouTube downloader...")
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            st.text("Extracting video info...")
             info = ydl.extract_info(url, download=False)
             if info is None:
                 st.error(f"Could not extract video info from URL: {url}")
                 return False
             
-            st.text(f"Downloading video: {info.get('title', 'Unknown title')}")
             ydl.download([url])
         
         if not os.path.isfile(output_path):
@@ -35,27 +46,11 @@ def download_video(url, output_path):
         
         st.success(f"Video downloaded successfully: {output_path} (Size: {file_size} bytes)")
         return True
-    except yt_dlp.utils.DownloadError as e:
-        st.error(f"yt-dlp download error: {str(e)}")
-        st.text("Full traceback:")
-        st.text(traceback.format_exc())
-    except yt_dlp.utils.ExtractorError as e:
-        st.error(f"yt-dlp extractor error: {str(e)}")
-        st.text("Full traceback:")
-        st.text(traceback.format_exc())
     except Exception as e:
-        st.error(f"Unexpected error downloading video: {str(e)}")
+        st.error(f"Error downloading video: {str(e)}")
         st.text("Full traceback:")
         st.text(traceback.format_exc())
     return False
-
-def log_progress(d):
-    if d['status'] == 'downloading':
-        st.text(f"Downloading: {d['_percent_str']} of {d['_total_bytes_str']} at {d['_speed_str']}")
-    elif d['status'] == 'finished':
-        st.text(f"Finished downloading: {d['filename']}")
-
-# The main function remains largely the same, but let's add a bit more debug info:
 
 def main():
     st.title("YouTube Video to Blog Post")
