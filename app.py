@@ -19,34 +19,36 @@ def download_audio_as_mp3(url, output_path):
         response.raise_for_status()
         data = response.json()
 
-        if data.get('status') != 'success':
-            st.error(f"Error from yt-to-mp3 API: {data.get('message')}")
+        if data.get('status') == 'success':
+            download_url = data.get('url')
+            if download_url:
+                audio_response = requests.get(download_url, stream=True)
+                audio_response.raise_for_status()
+
+                with open(output_path, 'wb') as f:
+                    for chunk in audio_response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+
+                if not os.path.isfile(output_path):
+                    st.error(f"Audio file was not created at: {output_path}")
+                    return False
+
+                file_size = os.path.getsize(output_path)
+                if file_size == 0:
+                    st.error(f"Downloaded file is empty: {output_path}")
+                    return False
+
+                st.success(f"Audio downloaded successfully: {output_path} (Size: {file_size} bytes)")
+                return True
+            else:
+                st.error("No download URL received from API.")
+                return False
+        else:
+            st.error(f"Error from yt-to-mp3 API: {data.get('message', 'Unknown error')}")
             return False
-
-        # Download the MP3 file
-        download_url = data.get('url')
-        audio_response = requests.get(download_url, stream=True)
-        audio_response.raise_for_status()
-
-        # Write to file
-        with open(output_path, 'wb') as f:
-            for chunk in audio_response.iter_content(chunk_size=8192):
-                f.write(chunk)
-
-        if not os.path.isfile(output_path):
-            st.error(f"Audio file was not created at: {output_path}")
-            return False
-
-        file_size = os.path.getsize(output_path)
-        if file_size == 0:
-            st.error(f"Downloaded file is empty: {output_path}")
-            return False
-
-        st.success(f"Audio downloaded successfully: {output_path} (Size: {file_size} bytes)")
-        return True
 
     except requests.RequestException as e:
-        st.error(f"Error downloading audio: {str(e)}")
+        st.error(f"Request error: {str(e)}")
         st.text("Full traceback:")
         st.text(traceback.format_exc())
         return False
@@ -136,4 +138,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
