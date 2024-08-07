@@ -1,80 +1,86 @@
-import streamlit as st
+import yt_dlp
+import subprocess
 import requests
-import os
-from pytube import YouTube
-from urllib.error import HTTPError
 
-# Streamlit app title
-st.title("YouTube Video to SEO Blog Post")
+def download_video(url, output_path):
+    ydl_opts = {
+        'format': 'worstvideo[ext=mp4]',  # Download the lowest quality MP4 video
+        'outtmpl': output_path,
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
 
-# Input for OpenAI API key
-api_key = st.text_input("Enter your OpenAI API key:", type="password")
+def extract_audio(video_path, audio_path):
+    command = [
+        'ffmpeg',
+        '-i', video_path,  # Input file
+        '-q:a', '0',       # Quality setting
+        '-map', 'a',       # Map audio stream
+        audio_path         # Output file
+    ]
+    subprocess.run(command, check=True)
 
-# Input for YouTube video URL
-video_url = st.text_input("Enter YouTube video URL:")
+def transcribe_audio(audio_path, api_key):
+    url = "https://api.openai.com/v1/audio/transcriptions"
+    headers = {
+        "Authorization": f"Bearer {api_key}"
+    }
+    files = {
+        "file": open(audio_path, "rb")
+    }
+    data = {
+        "model": "whisper-1",
+        "response_format": "json"
+    }
+    response = requests.post(url, headers=headers, files=files, data=data)
+    response.raise_for_status()
+    return response.json()["text"]
 
-# Function to download audio from YouTube video
-def download_audio(video_url):
-    try:
-        yt = YouTube(video_url)
-        video = yt.streams.filter(only_audio=True).first()
-        out_file = video.download(output_path=".")
-        base, ext = os.path.splitext(out_file)
-        new_file = base + '.mp3'
-        os.rename(out_file, new_file)
-        return new_file
-    except HTTPError as e:
-        st.error(f"HTTP Error: {e}")
-    except Exception as e:
-        st.error(f"An error occurred: {e}")
-
-# Function to transcribe audio using OpenAI API
-def transcribe_audio(file_path, api_key):
-    with open(file_path, 'rb') as audio_file:
-        response = requests.post(
-            "https://api.openai.com/v1/audio/transcriptions",
-            headers={"Authorization": f"Bearer {api_key}"},
-            files={"file": audio_file},
-            data={"model": "whisper-1", "response_format": "json"}
-        )
-    response_json = response.json()
-    return response_json.get('text', '')
-
-# Function to generate a blog post using OpenAI API
 def generate_blog_post(transcription, api_key):
-    response = requests.post(
-        "https://api.openai.com/v1/chat/completions",
-        headers={"Authorization": f"Bearer {api_key}"},
-        json={
-            "model": "gpt-4",
-            "messages": [
-                {"role": "system", "content": "You are an SEO expert and professional blog writer."},
-                {"role": "user", "content": f"Create a highly SEO-optimized blog post based on the following transcription:\n\n{transcription}"}
-            ],
-            "max_tokens": 1000,
-            "temperature": 0.7
-        }
-    )
-    response_json = response.json()
-    return response_json['choices'][0]['message']['content']
+    url = "https://api.openai.com/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "model": "gpt-4",
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are a blog post writer."
+            },
+            {
+                "role": "user",
+                "content": f"Create a blog post based on the following transcription:\n\n{transcription}"
+            }
+        ]
+    }
+    response = requests.post(url, headers=headers, json=data)
+    response.raise_for_status()
+    return response.json()["choices"][0]["message"]["content"]
 
-if api_key and video_url:
-    st.write("Processing...")
-    audio_file_path = download_audio(video_url)
-    
-    if audio_file_path:
-        st.write("Audio downloaded successfully.")
-        
-        transcription = transcribe_audio(audio_file_path, api_key)
-        st.write("Transcription completed successfully.")
-        st.text_area("Transcription", transcription, height=300)
-        
-        blog_post = generate_blog_post(transcription, api_key)
-        st.write("Blog post generated successfully.")
-        st.text_area("SEO Blog Post", blog_post, height=300)
-        
-        # Adding a copy button for the generated blog post
-        st.code(blog_post, language="markdown")
-        st.button("Copy to Clipboard")
-else:
-    st.info("Please enter both your OpenAI API key and YouTube video URL.")
+# Example usage
+if __name__ == "__main__":
+    video_url = 'https://www.youtube.com/watch?v=YOUR_VIDEO_ID'  # Replace with your YouTube video URL
+    video_path = 'video.mp4'
+    audio_path = 'audio.mp3'
+    openai_api_key = 'your_openai_api_key'  # Replace with your OpenAI API key
+
+    # Step 1: Download the YouTube video
+    print("Downloading video...")
+    download_video(video_url, video_path)
+
+    # Step 2: Extract audio from the video
+    print("Extracting audio...")
+    extract_audio(video_path, audio_path)
+
+    # Step 3: Transcribe the audio
+    print("Transcribing audio...")
+    transcription = transcribe_audio(audio_path, openai_api_key)
+    print("Transcription:", transcription)
+
+    # Step 4: Generate blog post
+    print("Generating blog post...")
+    blog_post = generate_blog_post(transcription, openai_api_key)
+    print("Blog Post:", blog_post)
+
